@@ -1,0 +1,6 @@
+{
+  "model": "Claude Haiku 4.5",
+  "idleTimeoutMs": 300000,
+  "banner": false,
+  "models": ["GPT-5 mini", "Claude Haiku 4.5"]
+}

@@ -1,0 +1,96 @@
+{
+	"name": "kopilot",
+	"version": "0.1.0",
+	"description": "A terminal-based AI assistant powered by the GitHub Copilot SDK - a streaming TUI chat client and template for building domain-specific AI assistants",
+	"author": {
+		"name": "Thomas Klok Rohde",
+		"email": "rohde.thomas@gmail.com",
+		"url": "https://github.com/ThomasRohde"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ThomasRohde/kopilot.git"
+	},
+	"homepage": "https://github.com/ThomasRohde/kopilot#readme",
+	"bugs": {
+		"url": "https://github.com/ThomasRohde/kopilot/issues"
+	},
+	"keywords": [
+		"copilot",
+		"github-copilot",
+		"cli",
+		"terminal",
+		"ai",
+		"assistant",
+		"chat",
+		"tui",
+		"ink",
+		"react"
+	],
+	"bin": "dist/cli.js",
+	"type": "module",
+	"engines": {
+		"node": ">=18"
+	},
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsx source/cli.tsx",
+		"dev:watch": "tsx watch source/cli.tsx --clear-screen=false",
+		"start": "node dist/cli.js",
+		"pretest": "npm run build",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:full": "prettier --check . && xo && npm test"
+	},
+	"files": [
+		"dist"
+	],
+	"dependencies": {
+		"@github/copilot-sdk": "^0.1.20",
+		"@inkjs/ui": "^2.0.0",
+		"ink": "^5.2.1",
+		"ink-markdown": "^1.0.4",
+		"ink-select-input": "^6.2.0",
+		"ink-spinner": "^5.0.0",
+		"ink-text-input": "^6.0.0",
+		"meow": "^11.0.0",
+		"react": "^18.3.1"
+	},
+	"devDependencies": {
+		"@sindresorhus/tsconfig": "^3.0.1",
+		"@types/react": "^18.3.27",
+		"@vdemedes/prettier-config": "^2.0.1",
+		"@vitest/ui": "^4.0.18",
+		"ava": "^5.2.0",
+		"chalk": "^5.2.0",
+		"eslint-config-xo-react": "^0.27.0",
+		"eslint-plugin-react": "^7.32.2",
+		"eslint-plugin-react-hooks": "^7.0.1",
+		"ink-testing-library": "^3.0.0",
+		"prettier": "^2.8.7",
+		"ts-node": "^10.9.1",
+		"tsx": "^4.21.0",
+		"typescript": "^5.0.3",
+		"vitest": "^4.0.18",
+		"xo": "^1.2.3"
+	},
+	"ava": {
+		"extensions": {
+			"ts": "module",
+			"tsx": "module"
+		},
+		"nodeArguments": [
+			"--import=tsx"
+		]
+	},
+	"xo": {
+		"extends": "xo-react",
+		"prettier": true,
+		"semicolon": true,
+		"rules": {
+			"react/prop-types": "off"
+		}
+	},
+	"prettier": "@vdemedes/prettier-config"
+}

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)",
+      "Bash(DEBUG=vitest*)",
+      "WebFetch(domain:github.blog)",
+      "Bash(npm install)"
+    ]
+  },
+  "enabledPlugins": {
+    "playground@claude-plugins-official": true
+  }
+}
