@@ -23,7 +23,7 @@ Kopilot isn't just a chat client—it's a **starting point for building your own
 - 🔧 **Add Tools** — Define domain-specific capabilities (database queries, API calls, file operations)
 - 💬 **Customize the Prompt** — Shape how your assistant behaves and what it knows
 - 🖥️ **Extend the UI** — Build on the streaming TUI with your own commands
-- 🌍 **Deploy Globally** — Use `npm link` to install your copilot as a CLI tool
+- 🌍 **Deploy Globally** — Use `npm install -g .` to install your copilot as a CLI tool
 
 Whether you're building a database assistant, a DevOps helper, or a specialized coding tool, Kopilot gives you the scaffolding to get started fast.
 
