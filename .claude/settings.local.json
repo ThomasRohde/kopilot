@@ -5,7 +5,8 @@
       "Bash(npx vitest:*)",
       "Bash(DEBUG=vitest*)",
       "WebFetch(domain:github.blog)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(start \"\" \"c:\\\\Users\\\\thoma\\\\Projects\\\\kopilot\\\\feature-explorer.html\")"
     ]
   },
   "enabledPlugins": {

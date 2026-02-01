@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kopilot Feature Explorer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1a1a1a;
+      --bg-secondary: #242424;
+      --bg-tertiary: #2d2d2d;
+      --border: #3a3a3a;
+      --text: #e0e0e0;
+      --text-muted: #888;
+      --accent: #6b9fff;
+      --accent-dim: #4a7acc;
+      --success: #4caf50;
+      --warning: #ff9800;
+      --danger: #f44336;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    header h1 span {
+      color: var(--accent);
+    }
+
+    .preset-bar {
+      display: flex;
+      gap: 8px;
+    }
+
+    .preset-btn {
+      padding: 6px 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+
+    .preset-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .preset-btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      overflow: hidden;
+    }
+
+    .features-panel {
+      padding: 16px 24px;
+      overflow-y: auto;
+      border-right: 1px solid var(--border);
+    }
+
+    .category {
+      margin-bottom: 24px;
+    }
+
+    .category-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .category-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .category-count {
+      font-size: 11px;
+      padding: 2px 6px;
+      background: var(--bg-tertiary);
+      border-radius: 10px;
+      color: var(--text-muted);
+    }
+
+    .category-toggle {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 2px 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+    }
+
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .feature-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: start;
+      padding: 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    .feature-item:hover {
+      border-color: var(--accent-dim);
+    }
+
+    .feature-item.selected {
+      border-color: var(--accent);
+      background: rgba(107, 159, 255, 0.08);
+    }
+
+    .feature-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+
+    .feature-content {
+      min-width: 0;
+    }
+
+    .feature-name {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .feature-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .feature-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .complexity {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .complexity.low { background: rgba(76, 175, 80, 0.2); color: var(--success); }
+    .complexity.medium { background: rgba(255, 152, 0, 0.2); color: var(--warning); }
+    .complexity.high { background: rgba(244, 67, 54, 0.2); color: var(--danger); }
+
+    .priority-select {
+      font-size: 11px;
+      padding: 2px 4px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-secondary);
+    }
+
+    .summary-panel {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .summary-panel h3 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text-muted);
+    }
+
+    .summary-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat {
+      text-align: center;
+      padding: 12px;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .selected-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .selected-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px;
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .selected-item:last-child {
+      border-bottom: none;
+    }
+
+    .selected-item .remove {
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px 6px;
+    }
+
+    .selected-item .remove:hover {
+      color: var(--danger);
+    }
+
+    .prompt-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    .prompt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .prompt-header h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .copy-btn {
+      padding: 6px 12px;
+      background: var(--accent);
+      border: none;
+      border-radius: 4px;
+      color: #000;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .copy-btn:hover {
+      filter: brightness(1.1);
+    }
+
+    .copy-btn.copied {
+      background: var(--success);
+    }
+
+    .prompt-output {
+      flex: 1;
+      padding: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      color: var(--text-muted);
+    }
+
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .options-panel {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .options-panel h3 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text-muted);
+    }
+
+    .option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .option-row label {
+      font-size: 12px;
+    }
+
+    .option-row select {
+      padding: 4px 8px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .option-row input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span>Kopilot</span> Feature Explorer</h1>
+    <div class="preset-bar">
+      <button class="preset-btn" onclick="applyPreset('clear')">Clear All</button>
+      <button class="preset-btn" onclick="applyPreset('mvp')">MVP Essentials</button>
+      <button class="preset-btn" onclick="applyPreset('power')">Power User</button>
+      <button class="preset-btn" onclick="applyPreset('agent')">Agent Focus</button>
+      <button class="preset-btn" onclick="applyPreset('polish')">Polish & UX</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="features-panel" id="featuresPanel"></div>
+
+    <div class="sidebar">
+      <div class="summary-panel">
+        <h3>SELECTION SUMMARY</h3>
+        <div class="summary-stats">
+          <div class="stat">
+            <div class="stat-value" id="selectedCount">0</div>
+            <div class="stat-label">Selected</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="complexityScore">-</div>
+            <div class="stat-label">Complexity</div>
+          </div>
+        </div>
+        <div class="selected-list" id="selectedList"></div>
+      </div>
+
+      <div class="options-panel">
+        <h3>PROMPT OPTIONS</h3>
+        <div class="option-row">
+          <label>Implementation style</label>
+          <select id="implStyle" onchange="updatePrompt()">
+            <option value="incremental">Incremental (one at a time)</option>
+            <option value="batch">Batch (all together)</option>
+            <option value="plan">Plan only (no code)</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label>Include tests</label>
+          <input type="checkbox" id="includeTests" checked onchange="updatePrompt()">
+        </div>
+        <div class="option-row">
+          <label>Include docs</label>
+          <input type="checkbox" id="includeDocs" onchange="updatePrompt()">
+        </div>
+        <div class="option-row">
+          <label>Sort by priority</label>
+          <input type="checkbox" id="sortPriority" checked onchange="updatePrompt()">
+        </div>
+      </div>
+
+      <div class="prompt-panel">
+        <div class="prompt-header">
+          <h3>GENERATED PROMPT</h3>
+          <button class="copy-btn" onclick="copyPrompt()">Copy</button>
+        </div>
+        <div class="prompt-output" id="promptOutput">
+          <span class="empty-state">Select features to generate a prompt...</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const FEATURES = {
+      "UI & UX": [
+        { id: "search", name: "Conversation Search", desc: "/search <query> to find messages by keyword with highlighting", complexity: "medium" },
+        { id: "export", name: "Message Export", desc: "/export [format] to save history as markdown, JSON, or HTML", complexity: "medium" },
+        { id: "clipboard", name: "Copy to Clipboard", desc: "Quick copy individual messages or code blocks to clipboard", complexity: "low" },
+        { id: "theme", name: "Theme Toggle", desc: "/theme [dark|light] with persistence in config", complexity: "medium" },
+        { id: "syntax", name: "Syntax Highlighting", desc: "Language-aware code block highlighting in responses", complexity: "high" },
+        { id: "resize", name: "Resizable Panels", desc: "Drag to resize input area vs message history", complexity: "medium" }
+      ],
+      "Commands": [
+        { id: "alias", name: "Command Aliases", desc: "/alias <shortcut> <command> for custom shortcuts", complexity: "low" },
+        { id: "recent", name: "Recent Sessions", desc: "/session recent showing last 5 sessions for quick resume", complexity: "low" },
+        { id: "regen", name: "Regenerate Response", desc: "/regen or /retry to regenerate last assistant response", complexity: "medium" },
+        { id: "edit", name: "Edit Message", desc: "/edit <index> to modify and re-send previous messages", complexity: "medium" },
+        { id: "template", name: "Conversation Templates", desc: "/template <name> for reusable conversation starters", complexity: "medium" },
+        { id: "context", name: "Context Injection", desc: "/context add <path> to inject files as system context", complexity: "medium" }
+      ],
+      "Chat Features": [
+        { id: "folders", name: "Mention Directories", desc: "@folder/ to include all files in a directory", complexity: "medium" },
+        { id: "reactions", name: "Message Reactions", desc: "Thumbs up/down on assistant messages for feedback", complexity: "low" },
+        { id: "bookmark", name: "Bookmarks", desc: "/bookmark to mark important messages for quick return", complexity: "low" },
+        { id: "branch", name: "Session Branching", desc: "Branch from current message to explore alternatives", complexity: "high" },
+        { id: "stats", name: "Conversation Stats", desc: "/stats showing token usage, response times, tool usage", complexity: "medium" },
+        { id: "multiline", name: "Multiline Input", desc: "Shift+Enter for multiline, Enter to send", complexity: "low" }
+      ],
+      "Agent & Tools": [
+        { id: "websearch", name: "Web Search Tool", desc: "Tool for Copilot to search the web and cite sources", complexity: "high" },
+        { id: "filesystem", name: "File System Tools", desc: "read_file, list_directory, grep_content tools", complexity: "high" },
+        { id: "git", name: "Git Integration", desc: "git_status, git_diff, git_log tools for code analysis", complexity: "high" },
+        { id: "shell", name: "Shell Execution", desc: "Sandboxed run_shell_command tool with output capture", complexity: "high" },
+        { id: "memory", name: "Variables/Memory", desc: "Store and reuse variables like {$project_name}", complexity: "medium" },
+        { id: "rag", name: "RAG Integration", desc: "/index <dir> to build embeddings for context search", complexity: "high" }
+      ],
+      "Integrations": [
+        { id: "github", name: "GitHub Issues", desc: "/issue <owner/repo#123> to fetch issue details", complexity: "medium" },
+        { id: "pipe", name: "Pipe Integration", desc: "Support stdin/stdout piping with other CLI tools", complexity: "medium" },
+        { id: "paste", name: "Clipboard Paste Hook", desc: "Auto-detect pasted code and offer to attach", complexity: "low" },
+        { id: "notifications", name: "Desktop Notifications", desc: "Notify when long operations complete", complexity: "low" }
+      ],
+      "Developer": [
+        { id: "plugin", name: "Plugin System", desc: "/plugin load <path> for custom tool definitions", complexity: "high" },
+        { id: "debug", name: "Debug Mode", desc: "/debug to show raw API requests/responses", complexity: "medium" },
+        { id: "profile", name: "Performance Profiler", desc: "/profile showing latency and bottlenecks", complexity: "medium" },
+        { id: "filter", name: "Message Filtering", desc: "/filter [type] to show only specific message types", complexity: "low" }
+      ]
+    };
+
+    const state = {
+      selected: new Set(),
+      priorities: {} // id -> 'high' | 'medium' | 'low'
+    };
+
+    const PRESETS = {
+      clear: [],
+      mvp: ['clipboard', 'regen', 'multiline', 'recent', 'alias'],
+      power: ['search', 'export', 'template', 'context', 'bookmark', 'stats', 'filter'],
+      agent: ['filesystem', 'git', 'shell', 'websearch', 'memory'],
+      polish: ['theme', 'syntax', 'reactions', 'notifications', 'paste', 'multiline']
+    };
+
+    function render() {
+      const panel = document.getElementById('featuresPanel');
+      panel.innerHTML = '';
+
+      for (const [category, features] of Object.entries(FEATURES)) {
+        const selectedInCategory = features.filter(f => state.selected.has(f.id)).length;
+
+        const categoryEl = document.createElement('div');
+        categoryEl.className = 'category';
+        categoryEl.innerHTML = `
+          <div class="category-header" onclick="toggleCategory('${category}')">
+            <h2>${category}</h2>
+            <span class="category-count">${selectedInCategory}/${features.length}</span>
+            <span class="category-toggle">Select all</span>
+          </div>
+          <div class="feature-list">
+            ${features.map(f => `
+              <div class="feature-item ${state.selected.has(f.id) ? 'selected' : ''}" data-id="${f.id}">
+                <input type="checkbox"
+                       ${state.selected.has(f.id) ? 'checked' : ''}
+                       onchange="toggleFeature('${f.id}')">
+                <div class="feature-content">
+                  <div class="feature-name">${f.name}</div>
+                  <div class="feature-desc">${f.desc}</div>
+                </div>
+                <div class="feature-meta">
+                  <span class="complexity ${f.complexity}">${f.complexity}</span>
+                  ${state.selected.has(f.id) ? `
+                    <select class="priority-select" onchange="setPriority('${f.id}', this.value)">
+                      <option value="high" ${state.priorities[f.id] === 'high' ? 'selected' : ''}>P1</option>
+                      <option value="medium" ${state.priorities[f.id] === 'medium' || !state.priorities[f.id] ? 'selected' : ''}>P2</option>
+                      <option value="low" ${state.priorities[f.id] === 'low' ? 'selected' : ''}>P3</option>
+                    </select>
+                  ` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        panel.appendChild(categoryEl);
+      }
+
+      updateSummary();
+      updatePrompt();
+    }
+
+    function toggleFeature(id) {
+      if (state.selected.has(id)) {
+        state.selected.delete(id);
+        delete state.priorities[id];
+      } else {
+        state.selected.add(id);
+        state.priorities[id] = 'medium';
+      }
+      render();
+    }
+
+    function toggleCategory(category) {
+      const features = FEATURES[category];
+      const allSelected = features.every(f => state.selected.has(f.id));
+
+      features.forEach(f => {
+        if (allSelected) {
+          state.selected.delete(f.id);
+          delete state.priorities[f.id];
+        } else {
+          state.selected.add(f.id);
+          if (!state.priorities[f.id]) state.priorities[f.id] = 'medium';
+        }
+      });
+      render();
+    }
+
+    function setPriority(id, priority) {
+      state.priorities[id] = priority;
+      updatePrompt();
+    }
+
+    function applyPreset(preset) {
+      state.selected.clear();
+      for (const key in state.priorities) delete state.priorities[key];
+
+      PRESETS[preset].forEach(id => {
+        state.selected.add(id);
+        state.priorities[id] = 'medium';
+      });
+
+      document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      render();
+    }
+
+    function updateSummary() {
+      document.getElementById('selectedCount').textContent = state.selected.size;
+
+      // Calculate complexity score
+      let score = 0;
+      const allFeatures = Object.values(FEATURES).flat();
+      state.selected.forEach(id => {
+        const f = allFeatures.find(f => f.id === id);
+        if (f) {
+          score += f.complexity === 'low' ? 1 : f.complexity === 'medium' ? 2 : 3;
+        }
+      });
+
+      const scoreEl = document.getElementById('complexityScore');
+      if (state.selected.size === 0) {
+        scoreEl.textContent = '-';
+      } else if (score <= 5) {
+        scoreEl.textContent = 'Low';
+        scoreEl.style.color = 'var(--success)';
+      } else if (score <= 12) {
+        scoreEl.textContent = 'Med';
+        scoreEl.style.color = 'var(--warning)';
+      } else {
+        scoreEl.textContent = 'High';
+        scoreEl.style.color = 'var(--danger)';
+      }
+
+      // Update selected list
+      const list = document.getElementById('selectedList');
+      if (state.selected.size === 0) {
+        list.innerHTML = '<div class="empty-state" style="padding: 12px; font-size: 12px;">No features selected</div>';
+      } else {
+        const allFeatures = Object.values(FEATURES).flat();
+        const selectedFeatures = allFeatures.filter(f => state.selected.has(f.id));
+
+        list.innerHTML = selectedFeatures.map(f => `
+          <div class="selected-item">
+            <span>${f.name}</span>
+            <span class="remove" onclick="toggleFeature('${f.id}')">&times;</span>
+          </div>
+        `).join('');
+      }
+    }
+
+    function updatePrompt() {
+      const output = document.getElementById('promptOutput');
+
+      if (state.selected.size === 0) {
+        output.innerHTML = '<span class="empty-state">Select features to generate a prompt...</span>';
+        return;
+      }
+
+      const allFeatures = Object.values(FEATURES).flat();
+      let selectedFeatures = allFeatures.filter(f => state.selected.has(f.id));
+
+      // Sort by priority if enabled
+      if (document.getElementById('sortPriority').checked) {
+        const priorityOrder = { high: 0, medium: 1, low: 2 };
+        selectedFeatures.sort((a, b) => {
+          const pa = state.priorities[a.id] || 'medium';
+          const pb = state.priorities[b.id] || 'medium';
+          return priorityOrder[pa] - priorityOrder[pb];
+        });
+      }
+
+      const implStyle = document.getElementById('implStyle').value;
+      const includeTests = document.getElementById('includeTests').checked;
+      const includeDocs = document.getElementById('includeDocs').checked;
+
+      // Group by category for the prompt
+      const byCategory = {};
+      for (const [cat, features] of Object.entries(FEATURES)) {
+        const inCat = features.filter(f => state.selected.has(f.id));
+        if (inCat.length > 0) byCategory[cat] = inCat;
+      }
+
+      let prompt = '';
+
+      if (implStyle === 'plan') {
+        prompt = `I'd like you to create an implementation plan for adding the following features to kopilot (a terminal-based Copilot CLI client built with Ink/React):
+
+`;
+      } else if (implStyle === 'incremental') {
+        prompt = `I'd like to implement the following features for kopilot (a terminal-based Copilot CLI client built with Ink/React). Let's work through them one at a time, starting with the highest priority:
+
+`;
+      } else {
+        prompt = `I'd like you to implement the following features for kopilot (a terminal-based Copilot CLI client built with Ink/React):
+
+`;
+      }
+
+      // List features by priority
+      const highPriority = selectedFeatures.filter(f => state.priorities[f.id] === 'high');
+      const medPriority = selectedFeatures.filter(f => state.priorities[f.id] === 'medium' || !state.priorities[f.id]);
+      const lowPriority = selectedFeatures.filter(f => state.priorities[f.id] === 'low');
+
+      if (highPriority.length > 0) {
+        prompt += `**High Priority:**\n`;
+        highPriority.forEach(f => {
+          prompt += `- ${f.name}: ${f.desc}\n`;
+        });
+        prompt += '\n';
+      }
+
+      if (medPriority.length > 0) {
+        prompt += `**Medium Priority:**\n`;
+        medPriority.forEach(f => {
+          prompt += `- ${f.name}: ${f.desc}\n`;
+        });
+        prompt += '\n';
+      }
+
+      if (lowPriority.length > 0) {
+        prompt += `**Lower Priority:**\n`;
+        lowPriority.forEach(f => {
+          prompt += `- ${f.name}: ${f.desc}\n`;
+        });
+        prompt += '\n';
+      }
+
+      // Add implementation notes
+      prompt += `**Implementation notes:**\n`;
+      prompt += `- Follow existing patterns in the codebase (commands in commands.ts, tools in copilotAgent.ts)\n`;
+      prompt += `- Maintain the existing Ink/React component architecture\n`;
+      prompt += `- Keep TypeScript types consistent with the project style\n`;
+
+      if (includeTests) {
+        prompt += `- Include Vitest tests for new functionality\n`;
+      }
+
+      if (includeDocs) {
+        prompt += `- Update CLAUDE.md with documentation for new features\n`;
+      }
+
+      if (implStyle === 'incremental') {
+        prompt += `\nPlease start with the first high-priority feature. After completing each one, I'll review and we can move to the next.`;
+      } else if (implStyle === 'plan') {
+        prompt += `\nPlease provide a detailed implementation plan including:\n1. File changes needed for each feature\n2. Dependencies between features\n3. Suggested implementation order\n4. Any architectural considerations`;
+      }
+
+      output.textContent = prompt;
+    }
+
+    function copyPrompt() {
+      const prompt = document.getElementById('promptOutput').textContent;
+      if (prompt.includes('Select features')) return;
+
+      navigator.clipboard.writeText(prompt).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    // Initialize
+    render();
+  </script>
+</body>
+</html>
