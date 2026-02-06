@@ -47,7 +47,7 @@
 		"dist"
 	],
 	"dependencies": {
-		"@github/copilot-sdk": "^0.1.20",
+		"@github/copilot-sdk": "^0.1.22",
 		"@inkjs/ui": "^2.0.0",
 		"ink": "^5.2.1",
 		"ink-markdown": "^1.0.4",
@@ -73,7 +73,7 @@
 		"tsx": "^4.21.0",
 		"typescript": "^5.0.3",
 		"vitest": "^4.0.18",
-		"xo": "^1.2.3"
+		"xo": "^0.60.0"
 	},
 	"ava": {
 		"extensions": {
