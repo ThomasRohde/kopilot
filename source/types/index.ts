@@ -4,9 +4,46 @@
  */
 
 import type {FileAttachment} from '../core/mentions.js';
+import type {
+	PermissionRequest,
+	PermissionRequestResult,
+} from '@github/copilot-sdk';
 
 // Re-export for convenience
 export type {FileAttachment};
+
+// Re-export SDK types used by UI components
+export type {PermissionRequest, PermissionRequestResult};
+
+/**
+ * User input request from the agent (mirrors SDK internal type).
+ */
+export type UserInputRequest = {
+	question: string;
+	choices?: string[];
+	allowFreeform?: boolean;
+};
+
+/**
+ * User input response (mirrors SDK internal type).
+ */
+export type UserInputResponse = {
+	answer: string;
+	wasFreeform: boolean;
+};
+
+/**
+ * Token usage information from the assistant.
+ */
+export type TokenUsage = {
+	model?: string;
+	inputTokens?: number;
+	outputTokens?: number;
+	cacheReadTokens?: number;
+	cacheWriteTokens?: number;
+	cost?: number;
+	duration?: number;
+};
 
 /**
  * Chat message in the conversation.
@@ -18,6 +55,10 @@ export type Message = {
 	isStreaming?: boolean;
 	kind?: 'info' | 'error';
 	attachments?: FileAttachment[];
+	usage?: TokenUsage;
+	reasoning?: string;
+	turnPhase?: 'thinking' | 'responding';
+	intent?: string;
 };
 
 /**

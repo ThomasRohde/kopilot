@@ -8,6 +8,7 @@ export type CommandOutcome =
 	| {type: 'set-model'; model: string}
 	| {type: 'new-session'}
 	| {type: 'resume-session'; sessionId: string}
+	| {type: 'set-reasoning-effort'; effort: string}
 	| {type: 'noop'};
 
 export type CommandContext = {
@@ -146,7 +147,7 @@ const COMMANDS: Command[] = [
 	{
 		name: 'session',
 		description: 'Manage Copilot sessions',
-		usage: '/session [list|new|resume <id>]',
+		usage: '/session [list|new|resume <id>|delete <id>]',
 		run: async (args, context) => {
 			const action = args[0]?.toLowerCase();
 			if (!action) {
@@ -173,6 +174,41 @@ const COMMANDS: Command[] = [
 				}
 
 				return {type: 'resume-session', sessionId: id};
+			}
+
+			if (action === 'delete') {
+				const id = args[1];
+				if (!id) {
+					return {
+						type: 'message',
+						kind: 'error',
+						message: 'Usage: /session delete <session-id>',
+					};
+				}
+
+				if (!context.client) {
+					return {
+						type: 'message',
+						kind: 'error',
+						message: 'Copilot client is not ready.',
+					};
+				}
+
+				try {
+					await context.client.deleteSession(id);
+					return {
+						type: 'message',
+						message: `Deleted session ${id}.`,
+					};
+				} catch (error) {
+					return {
+						type: 'message',
+						kind: 'error',
+						message: `Failed to delete session: ${
+							error instanceof Error ? error.message : String(error)
+						}`,
+					};
+				}
 			}
 
 			if (action === 'list') {
@@ -214,6 +250,31 @@ const COMMANDS: Command[] = [
 				kind: 'error',
 				message: `Unknown session command: ${action}`,
 			};
+		},
+	},
+	{
+		name: 'reasoning',
+		description: 'Set reasoning effort for capable models',
+		usage: '/reasoning [low|medium|high|xhigh]',
+		run: async (args) => {
+			const validEfforts = ['low', 'medium', 'high', 'xhigh'];
+			if (args.length === 0) {
+				return {
+					type: 'message',
+					message: `Usage: /reasoning [${validEfforts.join('|')}]`,
+				};
+			}
+
+			const effort = args[0]?.toLowerCase() ?? '';
+			if (!validEfforts.includes(effort)) {
+				return {
+					type: 'message',
+					kind: 'error',
+					message: `Invalid reasoning effort: ${effort}. Valid values: ${validEfforts.join(', ')}`,
+				};
+			}
+
+			return {type: 'set-reasoning-effort', effort};
 		},
 	},
 	{
@@ -262,7 +323,138 @@ const COMMANDS: Command[] = [
 			}
 
 			const state = context.client.getState?.() ?? 'unknown';
-			return {type: 'message', message: `Client state: ${state}`};
+			const lines = [`Client state: ${state}`];
+
+			try {
+				const versionInfo = await context.client.getStatus();
+				lines.push(
+					`Version: ${versionInfo.version} (protocol: ${versionInfo.protocolVersion})`,
+				);
+			} catch {
+				// getStatus may not be available on older servers
+			}
+
+			try {
+				const auth = await context.client.getAuthStatus();
+				lines.push(
+					`Auth: ${auth.isAuthenticated ? 'Authenticated' : 'Not authenticated'} (${auth.authType ?? 'unknown'})`,
+				);
+				if (auth.login) {
+					lines.push(`Login: ${auth.login}`);
+				}
+			} catch {
+				// getAuthStatus may not be available on older servers
+			}
+
+			if (context.session) {
+				lines.push(`Session: ${context.session.sessionId}`);
+			}
+
+			lines.push(`Model: ${context.currentModel}`);
+
+			return {type: 'message', message: lines.join('\n')};
+		},
+	},
+	{
+		name: 'hooks',
+		description: 'Show available session hook types',
+		usage: '/hooks',
+		run: async () => {
+			const lines = [
+				'Session Hooks:',
+				'  onPreToolUse - Called before a tool is executed',
+				'  onPostToolUse - Called after a tool is executed',
+				'  onUserPromptSubmitted - Called when the user submits a prompt',
+				'  onSessionStart - Called when a session starts',
+				'  onSessionEnd - Called when a session ends',
+				'  onErrorOccurred - Called when an error occurs',
+				'',
+				'Configure hooks via the SDK SessionConfig.hooks field.',
+			];
+			return {type: 'message', message: lines.join('\n')};
+		},
+	},
+	{
+		name: 'provider',
+		description: 'Show current provider configuration',
+		usage: '/provider',
+		run: async (_args, context) => {
+			// Access provider from session config if available
+			const sessionConfig = (context as Record<string, unknown>)['sessionConfig'] as Record<string, unknown> | undefined;
+			const provider = sessionConfig?.['provider'] as Record<string, unknown> | undefined;
+
+			if (!provider) {
+				return {
+					type: 'message',
+					message: 'Using default GitHub Copilot provider.\nTo use a custom provider, set "provider" in your config file with a "baseUrl".',
+				};
+			}
+
+			const lines = ['Custom Provider:'];
+			if (provider['type']) {
+				lines.push(`  Type: ${provider['type']}`);
+			}
+
+			if (provider['baseUrl']) {
+				lines.push(`  Base URL: ${provider['baseUrl']}`);
+			}
+
+			if (provider['wireApi']) {
+				lines.push(`  API Format: ${provider['wireApi']}`);
+			}
+
+			return {type: 'message', message: lines.join('\n')};
+		},
+	},
+	{
+		name: 'mcp',
+		description: 'Show configured MCP servers',
+		usage: '/mcp',
+		run: async (_args, context) => {
+			const sessionConfig = (context as Record<string, unknown>)['sessionConfig'] as Record<string, unknown> | undefined;
+			const mcpServers = sessionConfig?.['mcpServers'] as Record<string, unknown> | undefined;
+
+			if (!mcpServers || Object.keys(mcpServers).length === 0) {
+				return {
+					type: 'message',
+					message: 'No MCP servers configured.\nAdd "mcpServers" to your config file to connect external tool servers.',
+				};
+			}
+
+			const lines = ['MCP Servers:'];
+			for (const [name, config] of Object.entries(mcpServers)) {
+				const server = config as Record<string, unknown>;
+				const serverType = server['type'] ?? 'local';
+				lines.push(`  ${name} (${serverType})`);
+			}
+
+			return {type: 'message', message: lines.join('\n')};
+		},
+	},
+	{
+		name: 'agent',
+		description: 'Show configured custom agents',
+		usage: '/agent',
+		aliases: ['agents'],
+		run: async (_args, context) => {
+			const sessionConfig = (context as Record<string, unknown>)['sessionConfig'] as Record<string, unknown> | undefined;
+			const customAgents = sessionConfig?.['customAgents'] as Array<Record<string, unknown>> | undefined;
+
+			if (!customAgents || customAgents.length === 0) {
+				return {
+					type: 'message',
+					message: 'No custom agents configured.\nAdd "customAgents" to your config file to define specialized agents.',
+				};
+			}
+
+			const lines = ['Custom Agents:'];
+			for (const agent of customAgents) {
+				const name = agent['displayName'] ?? agent['name'] ?? 'unknown';
+				const desc = agent['description'] ? ` - ${agent['description']}` : '';
+				lines.push(`  ${name}${desc}`);
+			}
+
+			return {type: 'message', message: lines.join('\n')};
 		},
 	},
 ];

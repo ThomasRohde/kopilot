@@ -112,7 +112,7 @@ export async function parseCli(argv: string[]): Promise<CliResult> {
 	const model =
 		cli.flags.model ??
 		env['KOPILOT_MODEL'] ??
-		fileConfig.sessionConfig?.model ??
+		(fileConfig.sessionConfig?.['model'] as string | undefined) ??
 		DEFAULTS.sessionConfig.model;
 
 	const sessionId = cli.flags.session ?? env['KOPILOT_SESSION'];

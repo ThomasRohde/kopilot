@@ -5,7 +5,7 @@
 
 import {useCallback, useRef, useState} from 'react';
 import type {CopilotSession, SessionEvent} from '@github/copilot-sdk';
-import type {Message} from '../types/index.js';
+import type {Message, TokenUsage} from '../types/index.js';
 import {createId} from '../utils/format.js';
 import {streamResponse} from '../agent/copilotAgent.js';
 import {resolveFileMentions} from '../core/mentions.js';
@@ -13,11 +13,6 @@ import {runCommand, type CommandContext} from '../core/commands.js';
 
 /** Debounce interval for streaming updates (ms) */
 const STREAM_DEBOUNCE_MS = 50;
-
-type ToolEventData = {
-	toolName?: string;
-	toolCallId?: string;
-};
 
 type UseChatOptions = {
 	session: CopilotSession | null;
@@ -44,6 +39,7 @@ type UseChatResult = {
 			onSwitchModel: (model: string) => Promise<unknown>;
 			onNewSession: () => Promise<unknown>;
 			onResumeSession: (sessionId: string) => Promise<unknown>;
+			onSetReasoningEffort: (effort: string) => Promise<unknown>;
 		},
 	) => Promise<boolean>;
 	handleSubmit: (
@@ -54,6 +50,24 @@ type UseChatResult = {
 		},
 	) => Promise<void>;
 };
+
+/**
+ * Helper to insert a system message before the assistant message in the list.
+ */
+function insertBeforeAssistant(
+	prev: Message[],
+	assistantId: string,
+	msg: Message,
+): Message[] {
+	const assistantIdx = prev.findIndex(m => m.id === assistantId);
+	if (assistantIdx === -1) {
+		return [...prev, msg];
+	}
+
+	const newMessages = [...prev];
+	newMessages.splice(assistantIdx, 0, msg);
+	return newMessages;
+}
 
 /**
  * Hook for managing chat messages and streaming.
@@ -97,6 +111,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
 				onSwitchModel: (model: string) => Promise<unknown>;
 				onNewSession: () => Promise<unknown>;
 				onResumeSession: (sessionId: string) => Promise<unknown>;
+				onSetReasoningEffort: (effort: string) => Promise<unknown>;
 			},
 		): Promise<boolean> => {
 			const outcome = await runCommand(value, context);
@@ -128,6 +143,10 @@ export function useChat(options: UseChatOptions): UseChatResult {
 				}
 				case 'resume-session': {
 					await callbacks.onResumeSession(outcome.sessionId);
+					return true;
+				}
+				case 'set-reasoning-effort': {
+					await callbacks.onSetReasoningEffort(outcome.effort);
 					return true;
 				}
 				case 'noop':
@@ -210,33 +229,134 @@ export function useChat(options: UseChatOptions): UseChatResult {
 			cancelRef.current = false;
 
 			try {
-				const handleToolEvent = (event: SessionEvent) => {
-					const eventType = event.type as string;
-					const data = (event as {data?: ToolEventData}).data;
-
-					if (eventType === 'tool.execution_start' && data?.toolName) {
-						// Insert tool notification before the assistant message
-						setMessages(prev => {
-							const assistantIdx = prev.findIndex(m => m.id === assistantId);
-							if (assistantIdx === -1) {
-								return [...prev, {
-									role: 'system',
-									id: createId(),
-									content: `🔧 Calling tool: ${data.toolName}`,
-									kind: 'info',
-								}];
-							}
-
-							const newMessages = [...prev];
-							newMessages.splice(assistantIdx, 0, {
+				const handleEvent = (event: SessionEvent) => {
+					if (event.type === 'tool.execution_start' && event.data.toolName) {
+						const toolName = event.data.toolName;
+						setMessages(prev =>
+							insertBeforeAssistant(prev, assistantId, {
 								role: 'system',
 								id: createId(),
-								content: `🔧 Calling tool: ${data.toolName}`,
+								content: `🔧 Calling tool: ${toolName}`,
 								kind: 'info',
-							});
-							return newMessages;
-						});
+							}),
+						);
 					}
+
+					if (event.type === 'session.compaction_start') {
+						setMessages(prev =>
+							insertBeforeAssistant(prev, assistantId, {
+								role: 'system',
+								id: createId(),
+								content: 'Compacting context...',
+								kind: 'info',
+							}),
+						);
+					}
+
+					if (event.type === 'session.compaction_complete') {
+						setMessages(prev =>
+							insertBeforeAssistant(prev, assistantId, {
+								role: 'system',
+								id: createId(),
+								content: event.data.success
+									? 'Context compacted -- older messages summarized.'
+									: `Context compaction failed: ${event.data.error ?? 'unknown error'}`,
+								kind: event.data.success ? 'info' : 'error',
+							}),
+						);
+					}
+
+					if (event.type === 'session.truncation') {
+						setMessages(prev =>
+							insertBeforeAssistant(prev, assistantId, {
+								role: 'system',
+								id: createId(),
+								content: `Context truncated (${event.data.messagesRemovedDuringTruncation} messages removed).`,
+								kind: 'info',
+							}),
+						);
+					}
+
+					if (event.type === 'subagent.started') {
+						const displayName =
+							event.data.agentDisplayName || event.data.agentName;
+						setMessages(prev =>
+							insertBeforeAssistant(prev, assistantId, {
+								role: 'system',
+								id: createId(),
+								content: `🤖 Agent started: ${displayName}`,
+								kind: 'info',
+							}),
+						);
+					}
+
+					if (event.type === 'subagent.completed') {
+						setMessages(prev =>
+							insertBeforeAssistant(prev, assistantId, {
+								role: 'system',
+								id: createId(),
+								content: `🤖 Agent completed: ${event.data.agentName}`,
+								kind: 'info',
+							}),
+						);
+					}
+
+					if (event.type === 'subagent.failed') {
+						setMessages(prev =>
+							insertBeforeAssistant(prev, assistantId, {
+								role: 'system',
+								id: createId(),
+								content: `🤖 Agent failed: ${event.data.agentName} -- ${event.data.error}`,
+								kind: 'error',
+							}),
+						);
+					}
+				};
+
+				const handleUsage = (usage: TokenUsage) => {
+					setMessages(prev =>
+						prev.map(msg =>
+							msg.id === assistantId ? {...msg, usage} : msg,
+						),
+					);
+				};
+
+				const handleReasoning = (chunk: string) => {
+					setMessages(prev =>
+						prev.map(msg =>
+							msg.id === assistantId
+								? {...msg, reasoning: (msg.reasoning ?? '') + chunk}
+								: msg,
+						),
+					);
+				};
+
+				const handleTurnStart = () => {
+					setMessages(prev =>
+						prev.map(msg =>
+							msg.id === assistantId
+								? {...msg, turnPhase: 'thinking' as const}
+								: msg,
+						),
+					);
+				};
+
+				const handleTurnEnd = () => {
+					setMessages(prev =>
+						prev.map(msg =>
+							msg.id === assistantId
+								? {...msg, turnPhase: undefined}
+								: msg,
+						),
+					);
+				};
+
+				const handleIntent = (intent: string) => {
+					setMessages(prev =>
+						prev.map(msg =>
+							msg.id === assistantId ? {...msg, intent} : msg,
+						),
+					);
 				};
 
 				// Debounced streaming: buffer chunks and flush every STREAM_DEBOUNCE_MS
@@ -250,18 +370,28 @@ export function useChat(options: UseChatOptions): UseChatResult {
 						setMessages(prev =>
 							prev.map(msg =>
 								msg.id === assistantId
-									? {...msg, content: msg.content + contentToAdd}
+									? {
+											...msg,
+											content: msg.content + contentToAdd,
+											turnPhase: 'responding' as const,
+										}
 									: msg,
 							),
 						);
 					}
+
 					lastFlush = Date.now();
 				};
 
 				for await (const chunk of streamResponse(escapedValue, session, {
 					attachments: sendAttachments,
 					idleTimeoutMs,
-					onEvent: handleToolEvent,
+					onEvent: handleEvent,
+					onUsage: handleUsage,
+					onReasoning: handleReasoning,
+					onTurnStart: handleTurnStart,
+					onTurnEnd: handleTurnEnd,
+					onIntent: handleIntent,
 				})) {
 					chunkBuffer += chunk;
 
@@ -277,11 +407,14 @@ export function useChat(options: UseChatOptions): UseChatResult {
 
 				setMessages(prev =>
 					prev.map(msg =>
-						msg.id === assistantId ? {...msg, isStreaming: false} : msg,
+						msg.id === assistantId
+							? {...msg, isStreaming: false, turnPhase: undefined}
+							: msg,
 					),
 				);
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
+				const message =
+					error instanceof Error ? error.message : String(error);
 				setMessages(prev =>
 					prev.map(msg =>
 						msg.id === assistantId

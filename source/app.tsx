@@ -16,6 +16,8 @@ import { MessageList } from './ui/MessageList.js';
 import { StatusBar } from './ui/StatusBar.js';
 import { Picker } from './ui/Picker.js';
 import { ModelPicker } from './ui/ModelPicker.js';
+import { PermissionPrompt } from './ui/PermissionPrompt.js';
+import { UserInputPrompt } from './ui/UserInputPrompt.js';
 
 // Custom hooks
 import { useFileIndex } from './hooks/useFileIndex.js';
@@ -31,8 +33,16 @@ import { colors } from './constants/index.js';
 const COMMAND_LIST = listCommands();
 
 export default function App() {
-	const { client, session, status, error: copilotError, config, actions } =
-		useCopilot();
+	const {
+		client,
+		session,
+		status,
+		error: copilotError,
+		config,
+		pendingPermission,
+		pendingUserInput,
+		actions,
+	} = useCopilot();
 	const { exit } = useApp();
 	const { write } = useStdout();
 
@@ -51,6 +61,7 @@ export default function App() {
 	const runtimeCwd = config.clientOptions.cwd ?? process.cwd();
 	const isInteractive = process.stdin.isTTY === true;
 	const isReady = status === 'ready' && !copilotError;
+	const hasPrompt = pendingPermission !== null || pendingUserInput !== null;
 
 	// File index hook
 	const { fileIndex, isIndexing, fileIndexError, ensureFileIndex } = useFileIndex({
@@ -200,6 +211,19 @@ export default function App() {
 					);
 					return resumed;
 				},
+				onSetReasoningEffort: async (effort: string) => {
+					const newSession = await actions.createSession({
+						model: currentModel,
+						reasoningEffort: effort as 'low' | 'medium' | 'high' | 'xhigh',
+					});
+					appendSystemMessage(
+						newSession
+							? `Reasoning effort set to ${effort}.`
+							: `Failed to set reasoning effort to ${effort}.`,
+						newSession ? 'info' : 'error',
+					);
+					return newSession;
+				},
 			});
 		},
 		[
@@ -267,8 +291,14 @@ export default function App() {
 	// Keyboard input handling
 	useInput(
 		(_input, key) => {
+			// Always allow Ctrl-C for exit
 			if (key.ctrl && _input === 'c') {
 				requestExit();
+				return;
+			}
+
+			// Skip other key handling when a prompt is active
+			if (hasPrompt) {
 				return;
 			}
 
@@ -370,10 +400,13 @@ export default function App() {
 					{copilotError && (
 						<Text color="red">Error: {copilotError.message}</Text>
 					)}
-					{isReady && isStreaming && (
+					{isReady && isStreaming && !hasPrompt && (
 						<Text dimColor>Waiting for response...</Text>
 					)}
-					{isReady && !isStreaming && !isModelPickerOpen && (
+					{isReady && hasPrompt && (
+						<Text dimColor>Respond to the prompt below...</Text>
+					)}
+					{isReady && !isStreaming && !isModelPickerOpen && !hasPrompt && (
 						<TextInput
 							key={inputCursorKey}
 							value={input}
@@ -382,11 +415,26 @@ export default function App() {
 							placeholder="Type @ to attach files or / for commands"
 						/>
 					)}
-					{isReady && !isStreaming && isModelPickerOpen && (
+					{isReady && !isStreaming && isModelPickerOpen && !hasPrompt && (
 						<Text dimColor>Select a model and press Enter.</Text>
 					)}
 				</Box>
-				{isModelPickerOpen && (
+
+				{/* Interactive prompts */}
+				{pendingPermission && (
+					<PermissionPrompt
+						request={pendingPermission}
+						onResolve={actions.resolvePermission}
+					/>
+				)}
+				{pendingUserInput && (
+					<UserInputPrompt
+						request={pendingUserInput}
+						onResolve={actions.resolveUserInput}
+					/>
+				)}
+
+				{isModelPickerOpen && !hasPrompt && (
 					<ModelPicker
 						title="Models"
 						models={modelOptions}
@@ -400,7 +448,7 @@ export default function App() {
 						dimColor={colors.dimText}
 					/>
 				)}
-				{isPickerOpen && pickerContext && !isModelPickerOpen && (
+				{isPickerOpen && pickerContext && !isModelPickerOpen && !hasPrompt && (
 					<Picker
 						title={pickerContext.kind === 'command' ? 'Commands' : 'Files'}
 						items={pickerItems}
@@ -409,9 +457,11 @@ export default function App() {
 				)}
 				<Box marginTop={1}>
 					<Text dimColor>
-						{isModelPickerOpen
-							? 'esc cancel · enter select model · up/down select · ctrl-c twice exit'
-							: 'esc cancel · ctrl-c twice exit · up/down select · /help commands · // to escape'}
+						{hasPrompt
+							? 'Respond to the prompt above'
+							: isModelPickerOpen
+								? 'esc cancel · enter select model · up/down select · ctrl-c twice exit'
+								: 'esc cancel · ctrl-c twice exit · up/down select · /help commands · // to escape'}
 					</Text>
 				</Box>
 					<StatusBar

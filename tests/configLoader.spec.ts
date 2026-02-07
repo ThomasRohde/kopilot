@@ -1,4 +1,4 @@
-import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
+import {vi} from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
 import {
@@ -275,6 +275,134 @@ describe('configLoader', () => {
 				ui: {banner: false},
 				limits: {idleTimeoutMs: 60000},
 			});
+		});
+
+		it('passes reasoningEffort to sessionConfig', () => {
+			const result = mergeFileConfigs({reasoningEffort: 'high'}, {});
+			expect(result.sessionConfig).toEqual({reasoningEffort: 'high'});
+		});
+
+		it('passes infiniteSessions to sessionConfig', () => {
+			const result = mergeFileConfigs({infiniteSessions: true}, {});
+			expect(result.sessionConfig).toEqual({infiniteSessions: {enabled: true}});
+		});
+
+		it('passes provider to sessionConfig', () => {
+			const provider = {baseUrl: 'http://localhost:8080'};
+			const result = mergeFileConfigs({provider}, {});
+			expect(result.sessionConfig).toEqual({provider});
+		});
+
+		it('passes mcpServers to sessionConfig', () => {
+			const mcpServers = {myServer: {type: 'http', url: 'http://localhost:3000', tools: ['search']}};
+			const result = mergeFileConfigs({mcpServers: mcpServers as any}, {});
+			expect(result.sessionConfig).toEqual({mcpServers});
+		});
+
+		it('passes customAgents to sessionConfig', () => {
+			const customAgents = [{name: 'test-agent', prompt: 'Be helpful'}];
+			const result = mergeFileConfigs({customAgents: customAgents as any}, {});
+			expect(result.sessionConfig).toEqual({customAgents});
+		});
+	});
+
+	describe('loadConfigFile - Phase 2/3 fields', () => {
+		it('validates reasoningEffort values', async () => {
+			mockReadFile.mockResolvedValue(
+				JSON.stringify({reasoningEffort: 'high'}),
+			);
+
+			const result = await loadConfigFile('/re/config.json');
+			expect(result).toEqual({reasoningEffort: 'high'});
+		});
+
+		it('rejects invalid reasoningEffort', async () => {
+			mockReadFile.mockResolvedValue(
+				JSON.stringify({reasoningEffort: 'turbo'}),
+			);
+			const mockLogger = {
+				level: 'warn' as const,
+				debug: vi.fn(),
+				info: vi.fn(),
+				warn: vi.fn(),
+				error: vi.fn(),
+			};
+
+			const result = await loadConfigFile('/re/config.json', mockLogger);
+			expect(result).toEqual({});
+			expect(mockLogger.warn).toHaveBeenCalled();
+		});
+
+		it('validates infiniteSessions as boolean', async () => {
+			mockReadFile.mockResolvedValue(
+				JSON.stringify({infiniteSessions: true}),
+			);
+
+			const result = await loadConfigFile('/is/config.json');
+			expect(result).toEqual({infiniteSessions: true});
+		});
+
+		it('validates provider with baseUrl', async () => {
+			mockReadFile.mockResolvedValue(
+				JSON.stringify({provider: {baseUrl: 'http://localhost:8080', type: 'openai'}}),
+			);
+
+			const result = await loadConfigFile('/prov/config.json');
+			expect(result.provider).toBeDefined();
+		});
+
+		it('rejects provider with apiKey in file config', async () => {
+			mockReadFile.mockResolvedValue(
+				JSON.stringify({provider: {baseUrl: 'http://localhost:8080', apiKey: 'secret'}}),
+			);
+			const mockLogger = {
+				level: 'warn' as const,
+				debug: vi.fn(),
+				info: vi.fn(),
+				warn: vi.fn(),
+				error: vi.fn(),
+			};
+
+			const result = await loadConfigFile('/prov/config.json', mockLogger);
+			expect(result.provider).toBeUndefined();
+			expect(mockLogger.warn).toHaveBeenCalledWith(
+				expect.stringContaining('environment variables'),
+			);
+		});
+
+		it('validates mcpServers as object', async () => {
+			mockReadFile.mockResolvedValue(
+				JSON.stringify({mcpServers: {test: {type: 'http', url: 'http://localhost:3000', tools: []}}}),
+			);
+
+			const result = await loadConfigFile('/mcp/config.json');
+			expect(result.mcpServers).toBeDefined();
+		});
+
+		it('validates customAgents as array', async () => {
+			mockReadFile.mockResolvedValue(
+				JSON.stringify({customAgents: [{name: 'agent1', prompt: 'Help'}]}),
+			);
+
+			const result = await loadConfigFile('/agents/config.json');
+			expect(result.customAgents).toBeDefined();
+		});
+
+		it('rejects customAgents as non-array', async () => {
+			mockReadFile.mockResolvedValue(
+				JSON.stringify({customAgents: 'not-an-array'}),
+			);
+			const mockLogger = {
+				level: 'warn' as const,
+				debug: vi.fn(),
+				info: vi.fn(),
+				warn: vi.fn(),
+				error: vi.fn(),
+			};
+
+			const result = await loadConfigFile('/agents/config.json', mockLogger);
+			expect(result.customAgents).toBeUndefined();
+			expect(mockLogger.warn).toHaveBeenCalled();
 		});
 	});
 });

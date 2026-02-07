@@ -23,6 +23,10 @@ export function buildModelDetails(model: ModelInfo): string | null {
 		details.push('vision');
 	}
 
+	if (model.capabilities?.supports?.reasoningEffort) {
+		details.push('reasoning');
+	}
+
 	return details.length > 0 ? details.join(' · ') : null;
 }
 

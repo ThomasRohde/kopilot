@@ -74,6 +74,94 @@ describe('command handling', () => {
 
 		expect(outcome).toEqual({type: 'set-model', model: 'gpt-4'});
 	});
+
+	it('sets reasoning effort for /reasoning <level>', async () => {
+		const outcome = await runCommand('/reasoning high', {
+			client: null,
+			session: null,
+			currentModel: 'GPT-5 mini',
+		});
+
+		expect(outcome).toEqual({type: 'set-reasoning-effort', effort: 'high'});
+	});
+
+	it('rejects invalid reasoning effort', async () => {
+		const outcome = await runCommand('/reasoning invalid', {
+			client: null,
+			session: null,
+			currentModel: 'GPT-5 mini',
+		});
+
+		expect(outcome?.type).toBe('message');
+		expect((outcome as any).kind).toBe('error');
+	});
+
+	it('shows usage for /reasoning without args', async () => {
+		const outcome = await runCommand('/reasoning', {
+			client: null,
+			session: null,
+			currentModel: 'GPT-5 mini',
+		});
+
+		expect(outcome?.type).toBe('message');
+		expect((outcome as any).message).toContain('Usage');
+	});
+
+	it('shows hooks info for /hooks', async () => {
+		const outcome = await runCommand('/hooks', {
+			client: null,
+			session: null,
+			currentModel: 'GPT-5 mini',
+		});
+
+		expect(outcome?.type).toBe('message');
+		expect((outcome as any).message).toContain('Session Hooks');
+		expect((outcome as any).message).toContain('onPreToolUse');
+	});
+
+	it('shows default provider for /provider', async () => {
+		const outcome = await runCommand('/provider', {
+			client: null,
+			session: null,
+			currentModel: 'GPT-5 mini',
+		});
+
+		expect(outcome?.type).toBe('message');
+		expect((outcome as any).message).toContain('default GitHub Copilot');
+	});
+
+	it('shows no MCP servers for /mcp', async () => {
+		const outcome = await runCommand('/mcp', {
+			client: null,
+			session: null,
+			currentModel: 'GPT-5 mini',
+		});
+
+		expect(outcome?.type).toBe('message');
+		expect((outcome as any).message).toContain('No MCP servers');
+	});
+
+	it('shows no agents for /agent', async () => {
+		const outcome = await runCommand('/agent', {
+			client: null,
+			session: null,
+			currentModel: 'GPT-5 mini',
+		});
+
+		expect(outcome?.type).toBe('message');
+		expect((outcome as any).message).toContain('No custom agents');
+	});
+
+	it('resolves /agents alias', async () => {
+		const outcome = await runCommand('/agents', {
+			client: null,
+			session: null,
+			currentModel: 'GPT-5 mini',
+		});
+
+		expect(outcome?.type).toBe('message');
+		expect((outcome as any).message).toContain('No custom agents');
+	});
 });
 
 // Note: Full integration tests with stdin.write() have compatibility issues

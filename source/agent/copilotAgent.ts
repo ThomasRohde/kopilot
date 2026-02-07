@@ -1,11 +1,17 @@
 import type {CopilotSession, SessionEvent} from '@github/copilot-sdk';
 import type {FileAttachment} from '../core/mentions.js';
+import type {TokenUsage} from '../types/index.js';
 
-type StreamResponseOptions = {
+export type StreamResponseOptions = {
 	attachments?: FileAttachment[];
 	mode?: 'enqueue' | 'immediate';
 	idleTimeoutMs?: number;
 	onEvent?: (event: SessionEvent) => void;
+	onUsage?: (usage: TokenUsage) => void;
+	onReasoning?: (chunk: string) => void;
+	onTurnStart?: () => void;
+	onTurnEnd?: () => void;
+	onIntent?: (intent: string) => void;
 };
 
 type QueueItem =
@@ -107,35 +113,95 @@ export async function* streamResponse(
 	const unsubscribe = session.on(event => {
 		options.onEvent?.(event);
 
-		const eventType = event.type as string;
-		const data = (event as {data?: Record<string, unknown>}).data ?? {};
-
-		switch (eventType) {
-			case 'assistant.message.delta':
+		switch (event.type) {
 			case 'assistant.message_delta': {
 				sawDelta = true;
-				queue.pushData((data['deltaContent'] as string | undefined) ?? '');
+				queue.pushData(event.data.deltaContent ?? '');
 				resetTimer();
 				break;
 			}
 
 			case 'assistant.message': {
-				if (!sawDelta && typeof data['content'] === 'string') {
-					queue.pushData(data['content'] as string);
+				if (!sawDelta && typeof event.data.content === 'string') {
+					queue.pushData(event.data.content);
 				}
+
 				resetTimer();
 				break;
 			}
 
-			case 'tool.execution_start': {
-				// Tool execution events are forwarded via onEvent callback
-				// The SDK handles tool execution automatically
+			case 'assistant.usage': {
+				options.onUsage?.({
+					model: event.data.model,
+					inputTokens: event.data.inputTokens,
+					outputTokens: event.data.outputTokens,
+					cacheReadTokens: event.data.cacheReadTokens,
+					cacheWriteTokens: event.data.cacheWriteTokens,
+					cost: event.data.cost,
+					duration: event.data.duration,
+				});
 				resetTimer();
 				break;
 			}
 
-			case 'tool.execution_complete': {
-				// Tool execution completed, response will continue
+			case 'assistant.reasoning_delta': {
+				options.onReasoning?.(event.data.deltaContent);
+				resetTimer();
+				break;
+			}
+
+			case 'assistant.reasoning': {
+				// Final reasoning content -- only forward if no deltas were sent
+				resetTimer();
+				break;
+			}
+
+			case 'assistant.turn_start': {
+				options.onTurnStart?.();
+				resetTimer();
+				break;
+			}
+
+			case 'assistant.turn_end': {
+				options.onTurnEnd?.();
+				resetTimer();
+				break;
+			}
+
+			case 'assistant.intent': {
+				options.onIntent?.(event.data.intent);
+				resetTimer();
+				break;
+			}
+
+			case 'tool.execution_start':
+			case 'tool.execution_complete':
+			case 'tool.execution_progress': {
+				// Tool events are forwarded via onEvent callback
+				resetTimer();
+				break;
+			}
+
+			case 'session.compaction_start':
+			case 'session.compaction_complete':
+			case 'session.truncation': {
+				// Context management events are forwarded via onEvent
+				resetTimer();
+				break;
+			}
+
+			case 'subagent.started':
+			case 'subagent.completed':
+			case 'subagent.failed':
+			case 'subagent.selected': {
+				// Agent events are forwarded via onEvent
+				resetTimer();
+				break;
+			}
+
+			case 'hook.start':
+			case 'hook.end': {
+				// Hook events are forwarded via onEvent
 				resetTimer();
 				break;
 			}
@@ -146,7 +212,13 @@ export async function* streamResponse(
 			}
 
 			case 'session.error': {
-				queue.fail(new Error(String(data['message'] ?? 'Unknown error')));
+				queue.fail(new Error(event.data.message ?? 'Unknown error'));
+				break;
+			}
+
+			default: {
+				// Unknown events are silently forwarded via onEvent
+				resetTimer();
 				break;
 			}
 		}

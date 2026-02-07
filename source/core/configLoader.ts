@@ -98,6 +98,69 @@ function validateField(
 			});
 			return undefined;
 
+		case 'reasoningEffort':
+			if (
+				typeof value === 'string' &&
+				['low', 'medium', 'high', 'xhigh'].includes(value)
+			) {
+				return value;
+			}
+
+			logger?.warn(
+				`Config: invalid value for "reasoningEffort", expected low|medium|high|xhigh`,
+				{value},
+			);
+			return undefined;
+
+		case 'infiniteSessions':
+			if (typeof value === 'boolean') {
+				return value;
+			}
+
+			logger?.warn(
+				`Config: invalid type for "infiniteSessions", expected boolean`,
+				{value},
+			);
+			return undefined;
+
+		case 'provider':
+			if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+				const provider = value as Record<string, unknown>;
+				if (typeof provider['baseUrl'] !== 'string') {
+					logger?.warn('Config: provider must have a "baseUrl" string');
+					return undefined;
+				}
+
+				// Security: reject secrets in file config
+				if (provider['apiKey'] !== undefined || provider['bearerToken'] !== undefined) {
+					logger?.warn(
+						'Config: apiKey/bearerToken must be set via environment variables, not config files',
+					);
+					return undefined;
+				}
+
+				return value;
+			}
+
+			logger?.warn('Config: invalid type for "provider", expected object with baseUrl');
+			return undefined;
+
+		case 'mcpServers':
+			if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+				return value;
+			}
+
+			logger?.warn('Config: invalid type for "mcpServers", expected object');
+			return undefined;
+
+		case 'customAgents':
+			if (Array.isArray(value)) {
+				return value;
+			}
+
+			logger?.warn('Config: invalid type for "customAgents", expected array');
+			return undefined;
+
 		default:
 			// Unknown fields are silently ignored (forward compatibility)
 			return undefined;
@@ -194,7 +257,7 @@ export function mergeFileConfigs(
 ): Partial<{
 	logLevel: LogLevel;
 	models: string[];
-	sessionConfig: {model: string};
+	sessionConfig: Record<string, unknown>;
 	ui: {banner: boolean};
 	limits: {maxAttachmentBytes?: number; idleTimeoutMs?: number};
 }> {
@@ -209,8 +272,33 @@ export function mergeFileConfigs(
 		result.models = merged.models;
 	}
 
+	const sessionConfig: Record<string, unknown> = {};
 	if (merged.model !== undefined) {
-		result.sessionConfig = {model: merged.model};
+		sessionConfig['model'] = merged.model;
+	}
+
+	if (merged.reasoningEffort !== undefined) {
+		sessionConfig['reasoningEffort'] = merged.reasoningEffort;
+	}
+
+	if (merged.infiniteSessions !== undefined) {
+		sessionConfig['infiniteSessions'] = {enabled: merged.infiniteSessions};
+	}
+
+	if (merged.provider !== undefined) {
+		sessionConfig['provider'] = merged.provider;
+	}
+
+	if (merged.mcpServers !== undefined) {
+		sessionConfig['mcpServers'] = merged.mcpServers;
+	}
+
+	if (merged.customAgents !== undefined) {
+		sessionConfig['customAgents'] = merged.customAgents;
+	}
+
+	if (Object.keys(sessionConfig).length > 0) {
+		result.sessionConfig = sessionConfig;
 	}
 
 	if (merged.banner !== undefined) {

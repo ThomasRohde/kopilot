@@ -6,7 +6,11 @@
       "Bash(DEBUG=vitest*)",
       "WebFetch(domain:github.blog)",
       "Bash(npm install)",
-      "Bash(start \"\" \"c:\\\\Users\\\\thoma\\\\Projects\\\\kopilot\\\\feature-explorer.html\")"
+      "Bash(start \"\" \"c:\\\\Users\\\\thoma\\\\Projects\\\\kopilot\\\\feature-explorer.html\")",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(git stash:*)",
+      "Bash(node -e:*)"
     ]
   },
   "enabledPlugins": {

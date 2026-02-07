@@ -1,6 +1,8 @@
 import type {CopilotClientOptions, SessionConfig, Tool} from '@github/copilot-sdk';
 import type {LogLevel} from './logger.js';
 
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
+
 export type RuntimeConfig = {
 	clientOptions: CopilotClientOptions;
 	sessionConfig: SessionConfig;
@@ -22,14 +24,47 @@ export type RuntimeConfig = {
  * Subset of RuntimeConfig configurable via JSON files.
  * Excludes security-sensitive options (cliPath, cliUrl, port).
  */
+/**
+ * Provider config subset allowed in JSON files.
+ * apiKey/bearerToken must come from environment variables, not files.
+ */
+export type FileProviderConfig = {
+	type?: 'openai' | 'azure' | 'anthropic';
+	wireApi?: 'completions' | 'responses';
+	baseUrl: string;
+};
+
+/**
+ * MCP server config for JSON files.
+ */
+export type FileMcpServerConfig =
+	| {type?: 'local' | 'stdio'; command: string; args: string[]; env?: Record<string, string>; tools: string[]}
+	| {type: 'http' | 'sse'; url: string; headers?: Record<string, string>; tools: string[]};
+
+/**
+ * Custom agent config for JSON files.
+ */
+export type FileCustomAgentConfig = {
+	name: string;
+	displayName?: string;
+	description?: string;
+	prompt: string;
+	tools?: string[];
+};
+
 export type FileConfig = {
 	model?: string;
+	reasoningEffort?: ReasoningEffort;
 	logLevel?: LogLevel;
 	banner?: boolean;
 	maxAttachmentBytes?: number;
 	maxAttachmentKb?: number; // Convenience alias (converted to bytes)
 	idleTimeoutMs?: number;
 	models?: string[];
+	infiniteSessions?: boolean;
+	provider?: FileProviderConfig;
+	mcpServers?: Record<string, FileMcpServerConfig>;
+	customAgents?: FileCustomAgentConfig[];
 };
 
 export const DEFAULTS: RuntimeConfig = {
@@ -42,6 +77,7 @@ export const DEFAULTS: RuntimeConfig = {
 	sessionConfig: {
 		model: 'GPT-5 mini',
 		streaming: true,
+		infiniteSessions: {enabled: true},
 		systemMessage: {
 			mode: 'append',
 			content: `You have access to the following tools:
